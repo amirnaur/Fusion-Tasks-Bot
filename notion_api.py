@@ -60,7 +60,13 @@ def get_tasks_assigned_to_user(user_notion_id):
                         ]
                     }
                 ]
-            }
+            },
+            "sorts": [
+                {
+                    "property": "Date",
+                    "direction": "ascending"
+                }
+            ]
         })
         return response['results']  # Возвращает список задач
     except Exception as e:

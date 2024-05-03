@@ -4,7 +4,11 @@ import re
 from database import set_user_notion_id, get_user_notion_id
 from notion_api import create_task_for_user, get_tasks_assigned_to_user
 from config import TELEGRAM_TOKEN
+import datetime
+import locale
 
+# Установка локали на русский язык
+locale.setlocale(locale.LC_TIME, 'ru_RU.UTF-8')
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
 commands = [
@@ -57,12 +61,42 @@ def handle_my_tasks(message):
     if notion_user_id:
         tasks = get_tasks_assigned_to_user(notion_user_id)
         if tasks:
-            tasks_list = '\n'.join([task['properties']['Name']['title'][0]['text']['content'] for task in tasks])
-            bot.reply_to(message, f"Your assigned tasks:\n{tasks_list}")
+            tasks_list = []
+            for task in tasks:
+                task_name = (task.get('properties', {})
+                             .get('Name', {})
+                             .get('title', [{}])[0]
+                             .get('text', {})
+                             .get('content', 'No Task Name'))
+
+                date_info = task.get('properties', {}).get('Date', {}).get('date', None)
+                location_rich_text = task.get('properties', {}).get('Location', {}).get('rich_text', [])
+                location_info = location_rich_text[0].get('text', {}).get('content') if location_rich_text else None
+
+                task_details = [f"*{task_name}*"]
+
+                if date_info:
+                    task_date = date_info.get('start')
+                    if task_date:
+                        date_object = datetime.datetime.fromisoformat(task_date)
+                        if date_object.year == datetime.datetime.now().year:
+                            formatted_date = date_object.strftime('%d %B %H:%M')
+                        else:
+                            formatted_date = date_object.strftime('%d %B %Y %H:%M')
+                        task_details.append(f"_Дата: {formatted_date}_")
+
+                if location_info:
+                    task_details.append(f"_Место: {location_info}_")
+
+                tasks_list.append('\n'.join(task_details))
+
+            tasks_message = '\n\n'.join(tasks_list)
+            bot.reply_to(message, f"Твои задачи:\n{tasks_message}", parse_mode='Markdown', disable_web_page_preview=True)
         else:
-            bot.reply_to(message, "No tasks found assigned to you.")
+            bot.reply_to(message, "Задачи не найдены.")
     else:
-        bot.reply_to(message, "Your Notion user ID is not set. Please update it using /setnotionid command.")
+        bot.reply_to(message,
+                     "ID пользователя Notion не установлен. Пожалуйста, обновите его с помощью команды /setnotionid.")
 
 
 
